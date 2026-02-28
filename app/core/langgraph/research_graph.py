@@ -46,6 +46,7 @@ class ResearchState(TypedDict):
     stage:          Current stage name — read by SSE streaming layer
     messages:       Full message log for DB persistence and streaming
     provider:       LLM provider to use across all nodes
+    model:          Specific model name — overrides provider default when set
     """
     query: str
     sub_questions: list[str]
@@ -56,6 +57,7 @@ class ResearchState(TypedDict):
     stage: str
     messages: Annotated[list[BaseMessage], add_messages]
     provider: str
+    model: str | None
 
 
 # ── Stage prompts ──────────────────────────────────────────────────────────────
@@ -92,7 +94,7 @@ Write in clear, professional English."""
 
 async def plan_node(state: ResearchState) -> dict:
     """Stage 1: Decompose the query into 2-3 research sub-questions."""
-    llm = get_llm(state.get("provider"))
+    llm = get_llm(state.get("provider"), model=state.get("model"))
     response = await llm.ainvoke([
         SystemMessage(content=_PLAN_PROMPT),
         HumanMessage(content=state["query"]),
@@ -150,7 +152,7 @@ async def research_node(state: ResearchState) -> dict:
 
 async def synthesize_node(state: ResearchState) -> dict:
     """Stage 3: Synthesize search results into a structured draft report."""
-    llm = get_llm(state.get("provider"))
+    llm = get_llm(state.get("provider"), model=state.get("model"))
 
     search_text = "\n\n".join(
         f"## Sub-question: {q}\n{r}"
@@ -172,7 +174,7 @@ async def synthesize_node(state: ResearchState) -> dict:
 
 async def review_node(state: ResearchState) -> dict:
     """Stage 4: Self-critique of the draft — identify gaps and weaknesses."""
-    llm = get_llm(state.get("provider"))
+    llm = get_llm(state.get("provider"), model=state.get("model"))
 
     review_input = (
         f"Original query: {state['query']}\n\n"
@@ -192,7 +194,7 @@ async def review_node(state: ResearchState) -> dict:
 
 async def finalize_node(state: ResearchState) -> dict:
     """Stage 5: Produce the final polished answer incorporating the critique."""
-    llm = get_llm(state.get("provider"))
+    llm = get_llm(state.get("provider"), model=state.get("model"))
 
     final_input = (
         f"Original query: {state['query']}\n\n"

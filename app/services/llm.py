@@ -20,12 +20,18 @@ from app.core.config import settings
 logger = structlog.get_logger(__name__)
 
 
-def get_llm(provider: str | None = None, tools: list | None = None) -> BaseChatModel:
+def get_llm(
+    provider: str | None = None,
+    model: str | None = None,
+    tools: list | None = None,
+) -> BaseChatModel:
     """
     Factory that returns a LangChain chat model for the requested provider.
 
     Args:
         provider: "anthropic" | "openai" | "google" — defaults to settings.LLM_PROVIDER
+        model:    Specific model name to use — overrides the provider default from settings.
+                  Examples: "claude-opus-4-5", "gpt-4o-mini", "gemini-1.5-pro"
         tools:    Optional list of tools to bind via .bind_tools()
 
     Returns:
@@ -36,7 +42,7 @@ def get_llm(provider: str | None = None, tools: list | None = None) -> BaseChatM
     if p == "openai":
         from langchain_openai import ChatOpenAI
         llm: BaseChatModel = ChatOpenAI(
-            model=settings.OPENAI_MODEL,
+            model=model or settings.OPENAI_MODEL,
             api_key=settings.OPENAI_API_KEY or None,
             temperature=settings.DEFAULT_LLM_TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
@@ -44,14 +50,14 @@ def get_llm(provider: str | None = None, tools: list | None = None) -> BaseChatM
     elif p == "google":
         from langchain_google_genai import ChatGoogleGenerativeAI
         llm = ChatGoogleGenerativeAI(
-            model=settings.GOOGLE_MODEL,
+            model=model or settings.GOOGLE_MODEL,
             google_api_key=settings.GOOGLE_API_KEY or None,
             temperature=settings.DEFAULT_LLM_TEMPERATURE,
             max_output_tokens=settings.MAX_TOKENS,
         )
     else:  # anthropic (default)
         llm = ChatAnthropic(
-            model=settings.DEFAULT_LLM_MODEL,
+            model=model or settings.DEFAULT_LLM_MODEL,
             anthropic_api_key=settings.ANTHROPIC_API_KEY or None,
             temperature=settings.DEFAULT_LLM_TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
