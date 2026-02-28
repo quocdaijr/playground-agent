@@ -4,12 +4,26 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4096)
     session_id: str | None = None
+    provider: str = "anthropic"  # "anthropic" | "openai" | "google"
 
 
 class ChatResponse(BaseModel):
     reply: str
     session_id: str | None = None
     turn_count: int = 0
+
+
+class ResearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=2048)
+    session_id: str | None = None
+    provider: str = "anthropic"  # "anthropic" | "openai" | "google"
+
+
+class ResearchResponse(BaseModel):
+    final_answer: str
+    sub_questions: list[str]
+    session_id: str
+    stages_completed: int = 5
 
 
 class HealthResponse(BaseModel):

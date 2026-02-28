@@ -6,11 +6,14 @@ Flow:
 
 The agent node injects a summary context into the system prompt when available,
 giving the model lightweight long-term memory without expanding the context window.
+
+Multi-LLM: call `get_graph(provider)` to get a graph backed by any supported
+provider. The default `agent_graph` uses the configured LLM_PROVIDER.
 """
 
+from functools import lru_cache
 from typing import Annotated, Literal, TypedDict
 
-from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
@@ -19,6 +22,7 @@ from langgraph.prebuilt import ToolNode
 from app.core.config import settings
 from app.core.langgraph.tools import TOOLS
 from app.core.prompts import SYSTEM_PROMPT
+from app.services.llm import get_llm
 
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -35,15 +39,6 @@ def _build_system_prompt(summary_context: str) -> str:
     """Render the system prompt, optionally injecting a prior-conversation summary."""
     ctx = f"\n## Prior conversation summary\n{summary_context}\n" if summary_context else ""
     return SYSTEM_PROMPT.replace("{summary_context}", ctx)
-
-
-def _make_llm() -> ChatAnthropic:
-    return ChatAnthropic(
-        model=settings.DEFAULT_LLM_MODEL,
-        temperature=settings.DEFAULT_LLM_TEMPERATURE,
-        max_tokens=settings.MAX_TOKENS,
-        anthropic_api_key=settings.ANTHROPIC_API_KEY or None,
-    ).bind_tools(TOOLS)
 
 
 # ── Nodes ──────────────────────────────────────────────────────────────────────
@@ -70,9 +65,9 @@ def _should_continue(state: AgentState) -> Literal["tools", "end"]:
 
 # ── Graph factory ──────────────────────────────────────────────────────────────
 
-def build_graph():
-    """Build and compile the PlaygroundAgent LangGraph StateGraph."""
-    llm = _make_llm()
+def _build_graph(provider: str):
+    """Internal builder — creates and compiles a fresh StateGraph for *provider*."""
+    llm = get_llm(provider, tools=TOOLS)
     tool_node = ToolNode(TOOLS)
 
     graph = StateGraph(AgentState)
@@ -90,5 +85,15 @@ def build_graph():
     return graph.compile()
 
 
-# Compiled once at import time — reused across all requests
-agent_graph = build_graph()
+@lru_cache(maxsize=4)
+def get_graph(provider: str = "anthropic"):
+    """
+    Return a compiled LangGraph for *provider*, cached per provider name.
+
+    Supported providers: "anthropic", "openai", "google"
+    """
+    return _build_graph(provider)
+
+
+# Default graph — compiled once at import time, reused across requests
+agent_graph = get_graph(settings.LLM_PROVIDER)

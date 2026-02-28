@@ -19,9 +19,21 @@ class Settings(BaseSettings):
     # API
     API_V1_PREFIX: str = "/api/v1"
 
-    # LLM
+    # LLM — provider selection
+    LLM_PROVIDER: str = "anthropic"  # "anthropic" | "openai" | "google"
+
+    # Anthropic / Claude
     ANTHROPIC_API_KEY: str = ""
     DEFAULT_LLM_MODEL: str = "claude-sonnet-4-20250514"
+
+    # OpenAI
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+
+    # Google Gemini
+    GOOGLE_API_KEY: str = ""
+    GOOGLE_MODEL: str = "gemini-2.0-flash"
+
     DEFAULT_LLM_TEMPERATURE: float = 0.7
     MAX_TOKENS: int = 2048
 
