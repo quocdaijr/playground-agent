@@ -55,12 +55,16 @@ def get_llm(
             temperature=settings.DEFAULT_LLM_TEMPERATURE,
             max_output_tokens=settings.MAX_TOKENS,
         )
-    else:  # anthropic (default)
+    elif p == "anthropic":
         llm = ChatAnthropic(
             model=model or settings.DEFAULT_LLM_MODEL,
             anthropic_api_key=settings.ANTHROPIC_API_KEY or None,
             temperature=settings.DEFAULT_LLM_TEMPERATURE,
             max_tokens=settings.MAX_TOKENS,
+        )
+    else:
+        raise ValueError(
+            f"Unknown LLM provider '{p}'. Must be one of: anthropic, openai, google"
         )
 
     return llm.bind_tools(tools) if tools else llm
@@ -68,12 +72,7 @@ def get_llm(
 
 class LLMService:
     def __init__(self) -> None:
-        self._llm = ChatAnthropic(
-            model=settings.DEFAULT_LLM_MODEL,
-            temperature=settings.DEFAULT_LLM_TEMPERATURE,
-            max_tokens=settings.MAX_TOKENS,
-            anthropic_api_key=settings.ANTHROPIC_API_KEY or None,
-        )
+        self._llm = get_llm()
 
     @retry(
         retry=retry_if_exception_type((APITimeoutError, RateLimitError, APIStatusError)),

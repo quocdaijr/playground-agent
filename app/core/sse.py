@@ -22,6 +22,9 @@ from langchain_core.messages import AIMessage
 
 logger = structlog.get_logger(__name__)
 
+# Name emitted by LangGraph's astream_events(version="v2") for the top-level graph
+_LANGGRAPH_GRAPH_NAME = "LangGraph"
+
 # Stage labels shown to the client for each graph node
 _STAGE_LABELS: dict[str, str] = {
     # Chat graph
@@ -109,20 +112,20 @@ async def stream_graph_events(
                 })
 
             # ── Capture final graph output ─────────────────────────────────
-            elif kind == "on_chain_end" and name == "LangGraph":
+            elif kind == "on_chain_end" and name == _LANGGRAPH_GRAPH_NAME:
                 final_state = data.get("output", {})
 
-    except Exception as exc:
-        logger.error("sse_stream_error", session_id=session_id, error=str(exc))
-        yield format_sse("error", {"message": str(exc)})
+    except Exception:
+        logger.exception("sse_stream_error", session_id=session_id)
+        yield format_sse("error", {"message": "An error occurred. Please try again."})
         return
 
     # Optional DB persistence callback before emitting done
     if on_complete:
         try:
             await on_complete(final_state)
-        except Exception as exc:
-            logger.error("sse_on_complete_error", session_id=session_id, error=str(exc))
+        except Exception:
+            logger.exception("sse_on_complete_error", session_id=session_id)
 
     # ── Done event ─────────────────────────────────────────────────────────
     reply = _extract_reply(final_state)

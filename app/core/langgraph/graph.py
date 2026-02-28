@@ -15,15 +15,19 @@ The default `agent_graph` uses the configured LLM_PROVIDER and its default model
 from functools import lru_cache
 from typing import Annotated, Literal, TypedDict
 
+import structlog
 from langchain_core.messages import BaseMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
 
 from app.core.config import settings
 from app.core.langgraph.tools import TOOLS
 from app.core.prompts import load_system_prompt
 from app.services.llm import get_llm
+
+logger = structlog.get_logger(__name__)
 
 
 # ── State ──────────────────────────────────────────────────────────────────────
@@ -39,6 +43,8 @@ class AgentState(TypedDict):
 def _build_system_prompt(provider: str, summary_context: str) -> str:
     """Render the provider-specific system prompt, injecting the summary context."""
     template = load_system_prompt(provider)
+    if "{summary_context}" not in template:
+        logger.warning("system_prompt_missing_placeholder", provider=provider)
     ctx = f"\n## Prior conversation summary\n{summary_context}\n" if summary_context else ""
     return template.replace("{summary_context}", ctx)
 
@@ -68,7 +74,7 @@ def _should_continue(state: AgentState) -> Literal["tools", "end"]:
 
 # ── Graph factory ──────────────────────────────────────────────────────────────
 
-def _build_graph(provider: str, model: str | None) -> object:
+def _build_graph(provider: str, model: str | None) -> CompiledStateGraph:
     """Build and compile a StateGraph for the given (provider, model) pair."""
     llm = get_llm(provider, model=model, tools=TOOLS)
     tool_node = ToolNode(TOOLS)
@@ -89,7 +95,7 @@ def _build_graph(provider: str, model: str | None) -> object:
 
 
 @lru_cache(maxsize=16)
-def get_graph(provider: str = "anthropic", model: str | None = None) -> object:
+def get_graph(provider: str = "anthropic", model: str | None = None) -> CompiledStateGraph:
     """
     Return a compiled LangGraph cached by (provider, model).
 

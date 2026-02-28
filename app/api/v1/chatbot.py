@@ -13,6 +13,7 @@ from app.schemas.chat import (
     ResearchRequest,
     ResearchResponse,
 )
+from app.core.config import settings
 from app.services.database import get_session
 from app.services.session_repo import (
     delete_session,
@@ -37,7 +38,6 @@ def _resolve_model(provider: str, model: str | None) -> str:
     """Return the effective model name used for this request (for logging / response)."""
     if model:
         return model
-    from app.core.config import settings
     return {
         "openai": settings.OPENAI_MODEL,
         "google": settings.GOOGLE_MODEL,
@@ -68,7 +68,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
         try:
             result = await graph.ainvoke(state)
         except Exception as exc:
-            logger.error("graph_invoke_failed", session_id=sid, error=str(exc))
+            logger.exception("graph_invoke_failed", session_id=sid)
             raise HTTPException(status_code=500, detail="Agent error") from exc
 
         new_msgs = state_messages_to_dicts(old_count, result)
@@ -178,7 +178,7 @@ async def research(req: ResearchRequest) -> ResearchResponse:
     try:
         result = await research_graph.ainvoke(initial_state)
     except Exception as exc:
-        logger.error("research_graph_failed", session_id=sid, error=str(exc))
+        logger.exception("research_graph_failed", session_id=sid)
         raise HTTPException(status_code=500, detail="Research pipeline error") from exc
 
     async with get_session() as db:

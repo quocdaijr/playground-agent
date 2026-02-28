@@ -102,16 +102,19 @@ async def plan_node(state: ResearchState) -> dict:
 
     try:
         raw = response.content.strip()
-        # Strip markdown fences if the LLM adds them despite instructions
+        # Robustly strip markdown fences (handles ```json\n...\n``` and ``` ... ```)
         if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
+            lines = raw.splitlines()
+            # Drop the opening fence line (e.g. ```json) and closing ``` line
+            inner = lines[1:]
+            if inner and inner[-1].strip() == "```":
+                inner = inner[:-1]
+            raw = "\n".join(inner).strip()
         sub_questions: list[str] = json.loads(raw)
         if not isinstance(sub_questions, list):
-            raise ValueError("Expected JSON array")
+            raise TypeError("Expected JSON array")
         sub_questions = [str(q).strip() for q in sub_questions[:3] if q]
-    except (json.JSONDecodeError, ValueError) as exc:
+    except (json.JSONDecodeError, TypeError, ValueError) as exc:
         logger.warning("plan_node_parse_failed", error=str(exc), raw=response.content[:200])
         # Fallback: treat whole query as single sub-question
         sub_questions = [state["query"]]
@@ -136,9 +139,9 @@ async def research_node(state: ResearchState) -> dict:
             result = await web_search.ainvoke({"query": question})
             results[question] = result
             logger.info("research_node_search", question=question[:80])
-        except Exception as exc:
-            logger.error("research_node_search_failed", question=question[:80], error=str(exc))
-            results[question] = f"[Search failed: {exc}]"
+        except Exception:
+            logger.exception("research_node_search_failed", question=question[:80])
+            results[question] = "[Search failed]"
 
     search_summary = "\n\n".join(
         f"### Sub-question: {q}\n{r}" for q, r in results.items()
