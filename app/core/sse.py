@@ -3,7 +3,7 @@ SSE Streaming Helpers
 ======================
 Adapts LangGraph .astream_events() output to Server-Sent Events (SSE) frames.
 
-Wire format (RFC 8895):
+Wire format (W3C/WHATWG HTML Living Standard — Server-sent events):
     event: <type>\\n
     data: <json>\\n
     \\n
@@ -121,11 +121,13 @@ async def stream_graph_events(
         return
 
     # Optional DB persistence callback before emitting done
+    persisted = True
     if on_complete:
         try:
             await on_complete(final_state)
         except Exception:
             logger.exception("sse_on_complete_error", session_id=session_id)
+            persisted = False
 
     # ── Done event ─────────────────────────────────────────────────────────
     reply = _extract_reply(final_state)
@@ -134,6 +136,7 @@ async def stream_graph_events(
         "reply": reply,
         "turn_count": turn_count,
         "session_id": session_id,
+        "persisted": persisted,
     })
 
 

@@ -18,9 +18,11 @@ Stages:
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from typing import Annotated, TypedDict
 
 import structlog
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
@@ -90,11 +92,17 @@ produce a final, polished answer that:
 Write in clear, professional English."""
 
 
+@lru_cache(maxsize=8)
+def _get_research_llm(provider: str | None, model: str | None) -> BaseChatModel:
+    """Return a cached LLM for the given (provider, model) pair (no tools needed)."""
+    return get_llm(provider, model=model)
+
+
 # ── Nodes ──────────────────────────────────────────────────────────────────────
 
 async def plan_node(state: ResearchState) -> dict:
     """Stage 1: Decompose the query into 2-3 research sub-questions."""
-    llm = get_llm(state.get("provider"), model=state.get("model"))
+    llm = _get_research_llm(state.get("provider"), state.get("model"))
     response = await llm.ainvoke([
         SystemMessage(content=_PLAN_PROMPT),
         HumanMessage(content=state["query"]),
@@ -155,7 +163,7 @@ async def research_node(state: ResearchState) -> dict:
 
 async def synthesize_node(state: ResearchState) -> dict:
     """Stage 3: Synthesize search results into a structured draft report."""
-    llm = get_llm(state.get("provider"), model=state.get("model"))
+    llm = _get_research_llm(state.get("provider"), state.get("model"))
 
     search_text = "\n\n".join(
         f"## Sub-question: {q}\n{r}"
@@ -177,7 +185,7 @@ async def synthesize_node(state: ResearchState) -> dict:
 
 async def review_node(state: ResearchState) -> dict:
     """Stage 4: Self-critique of the draft — identify gaps and weaknesses."""
-    llm = get_llm(state.get("provider"), model=state.get("model"))
+    llm = _get_research_llm(state.get("provider"), state.get("model"))
 
     review_input = (
         f"Original query: {state['query']}\n\n"
@@ -197,7 +205,7 @@ async def review_node(state: ResearchState) -> dict:
 
 async def finalize_node(state: ResearchState) -> dict:
     """Stage 5: Produce the final polished answer incorporating the critique."""
-    llm = get_llm(state.get("provider"), model=state.get("model"))
+    llm = _get_research_llm(state.get("provider"), state.get("model"))
 
     final_input = (
         f"Original query: {state['query']}\n\n"

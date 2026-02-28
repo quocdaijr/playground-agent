@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    session_id: str | None = None
+    session_id: str
     turn_count: int = 0
     provider: Provider = "anthropic"
     model: str | None = None

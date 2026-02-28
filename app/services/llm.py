@@ -20,6 +20,25 @@ from app.core.config import settings
 logger = structlog.get_logger(__name__)
 
 
+def _build_retryable_exceptions() -> tuple:
+    """Collect retryable exception types for all available LLM provider SDKs."""
+    exc: list = [APITimeoutError, RateLimitError, APIStatusError]
+    try:
+        import openai
+        exc += [openai.APITimeoutError, openai.RateLimitError, openai.APIStatusError]
+    except ImportError:
+        pass
+    try:
+        from google.api_core.exceptions import DeadlineExceeded, ResourceExhausted
+        exc += [DeadlineExceeded, ResourceExhausted]
+    except ImportError:
+        pass
+    return tuple(exc)
+
+
+_RETRYABLE_EXCEPTIONS = _build_retryable_exceptions()
+
+
 def get_llm(
     provider: str | None = None,
     model: str | None = None,
@@ -75,7 +94,7 @@ class LLMService:
         self._llm = get_llm()
 
     @retry(
-        retry=retry_if_exception_type((APITimeoutError, RateLimitError, APIStatusError)),
+        retry=retry_if_exception_type(_RETRYABLE_EXCEPTIONS),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=8),
         before_sleep=lambda rs: logger.warning(

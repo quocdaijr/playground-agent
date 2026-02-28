@@ -187,7 +187,8 @@ async def research(req: ResearchRequest) -> ResearchResponse:
             {"role": "human", "content": req.query},
             {"role": "ai", "content": result["final_answer"]},
         ]
-        await save_turn(db, session, len(result.get("sub_questions", [])) + 2, msgs)
+        stages_completed = 5
+        await save_turn(db, session, stages_completed, msgs)
 
     logger.info("research_complete", session_id=sid, provider=req.provider,
                 model=effective_model, sub_questions=len(result["sub_questions"]))
